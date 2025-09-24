@@ -1,6 +1,6 @@
 # Ejercicio técnico — Registro de pagos (Node.js + TS + Express + MongoDB)
 
-## Plantilla mínima para iniciar prueba técnica
+## Mariana García
 
 ### Requisitos
 - Node 18+ recomendado
@@ -9,130 +9,158 @@
 - `npm run dev` — desarrollo con tsx (hot-reload)
 - `npm run build` — compila a `dist/`
 - `npm start` — ejecuta build (producción)
+- `npm run format` - ejecuta formato sobre código
 
 
-## Objetivo
+## 🚀 Primeros pasos
 
-Diseñar y exponer un endpoint REST para registrar un pago con idempotencia, persistencia en MongoDB y confirmación al cliente.
+####  1. Instalación de dependencias:
 
-## Requisitos funcionales
+`npm install`
 
-####  1. Endpoint:
 
-- Definir método
-- Definir endpoint
+#### 2. Configuración de variables de entorno:
 
-#### 2. Body (JSON):
+Copia el archivo `.env.example` como `.env`:
 
-```json
+```bash
+cp .env.example .env
+```
+
+## 📋 Ejemplos de curl 
+
+📌 Creación de pago sin `Idempotency-Key`
+```bash
+curl --location 'http://localhost:8080/payments' \
+--header 'x-api-key: <API_KEY>' \
+--header 'Content-Type: application/json' \
+--data '{
+    "amount": 0.1,
+    "reference": "primer pago",
+    "method": "card"
+}'
+```
+
+Respuesta esperada
+
+- creación de un payment correctamente
+- HTTP Status 201 Created
+```bash
 {
-  "amount": 123.45,
-  "reference": "ORD-2025-0001",
-  "method": "card" // ej. "card" | "transfer" | "cash"
+    "_id": "68d3f281156b28ac74e53e19",
+    "amount": 0.1,
+    "reference": "primer pago",
+    "method": "card",
+    "status": "confirmed",
+    "requestHash": "d40651447fc21a08f76e078c6dff74a319cd756432ddbc25503fbb56e416e059",
+    "createdAt": "2025-09-24T13:30:26.855Z"
+}
+
+```
+📌 Creación de pago sin `Idempotency-Key` pero BODY repetido
+```bash
+curl --location 'http://localhost:8080/payments' \
+--header 'x-api-key: <API_KEY>' \
+--header 'idempotency-key: <IDEMPOTENCY_KEY>' \
+--header 'Content-Type: application/json' \
+--data '{
+    "amount": 0.1,
+    "reference": "primer pago",
+    "method": "card"
+}'
+```
+Respuesta esperada
+
+- HTTP Status 200 OK
+```bash
+{
+    "_id": "68d3f281156b28ac74e53e19",
+    "amount": 0.1,
+    "reference": "primer pago",
+    "method": "card",
+    "status": "confirmed",
+    "requestHash": "d40651447fc21a08f76e078c6dff74a319cd756432ddbc25503fbb56e416e059",
+    "createdAt": "2025-09-24T13:30:26.855Z"
 }
 ```
 
+📌 Creación de pago CON `Idempotency-Key` sin BODY repetido
+```bash
+curl --location 'http://localhost:8080/payments' \
+--header 'x-api-key: <API_KEY>' \
+--header 'idempotency-key: <IDEMPOTENCY_KEY>' \
+--header 'Content-Type: application/json' \
+--data '{
+    "amount": 0.1,
+    "reference": "segundo pago",
+    "method": "cash"
+}'
+```
 
-#### 3. Validaciones
+Respuesta esperada
 
-* amount > 0 (número).
-
-* reference no vacía (string).
-
-* method dentro de un conjunto permitido.
-
-#### 4. Idempotencia:
-
-* Aceptar el header Idempotency-Key: <uuid|string>.
-
-* Si se repite la misma key con el mismo payload, NO debe crear un pago nuevo: debe devolver la misma respuesta del primer intento (200).
-
-* Si se repite la misma key con payload diferente, devolver 409 Conflict (y no crear nada).
-
-* Si no se envía Idempotency-Key, usar una regla de deduplicación por (reference, method, amount) para evitar dobles cobros, devolviendo 200 con el primer recurso creado si ya existía.
-
-#### 5. Persistencia:
-
-Guardar el pago en MongoDB con estos campos mínimos:
-```json
+- creación de un payment correctamente
+- HTTP Status 201 Created
+```bash
 {
-  _id: ObjectId,
-  amount: number,
-  reference: string,
-  method: "card" | "transfer" | "cash",
-  status: "confirmed",       // fijo para este ejercicio
-  idempotencyKey?: string,   // si vino el header
-  requestHash: string,       // hash estable del body
-  createdAt: Date
-}
-````
-
-* Crear índices únicos:
-
-* Unico sobre idempotencyKey (si se usa).
-
-* Único compuesto sobre (reference, method, amount) para desduplicación cuando no hay key.
-
-#### 6. Segurida en endpoint
-* Agregar seguridad a endpoint para procesar las peticiones (Queda a criterio del desarrollador)
-
-#### 7. Respuesta de éxito:
-
-* 201 Created cuando se crea por primera vez.
-
-* 200 OK si es repetición idempotente o deduplicada.
-
-Body:
-```json
-{
-  "id": "<paymentId>",
-  "status": "confirmed",
-  "amount": 123.45,
-  "reference": "ORD-2025-0001",
-  "method": "card",
-  "createdAt": "2025-09-15T12:34:56.000Z"
+    "amount": 0.1,
+    "reference": "segundo pago",
+    "method": "cash",
+    "status": "confirmed",
+    "idempotencyKey": "uagdsuvzckaj673asv",
+    "requestHash": "7bccf4c671d3f659f79de0b1367b5dcc9b451ed9bfcf44bab7b91e26757d0cb2",
+    "createdAt": "2025-09-24T13:36:17.863Z",
+    "_id": "68d3f78890b677d831737ef2"
 }
 ```
 
-#### 7. Errores esperados:
+📌 Creación de pago CON `Idempotency-Key` repetida pero diferente BODY
+```bash
+curl --location 'http://localhost:8080/payments' \
+--header 'x-api-key: <API_KEY>' \
+--header 'idempotency-key: <IDEMPOTENCY_KEY>' \
+--header 'Content-Type: application/json' \
+--data '{
+    "amount": 10,
+    "reference": "tercer pago",
+    "method": "cash"
+}'
+```
 
-* 400: validaciones de schema.
+Respuesta esperada
 
-* 409: Idempotency-Key repetida con payload distinto.
-* 4XX: error de validación de endpoint
-* 500: errores no controlados.
+- HTTP Status 409 Conflict
+```bash
+{
+    "message": "Idempotency-Key conflict: payload mismatch"
+}
+```
 
-## Requisitos técnicos
+## ❗ Validaciones
 
-* Node.js + Express + Mongo DB
+- HTTP Status 400 Bad Request
+Si alguno de los parámetros esperados no es enviado
 
-* MongoDB con Mongoose o driver nativo.
+```bash
+{
+    "errors": [
+        {
+            "isNumber": "amount must be a number conforming to the specified constraints",
+            "isPositive": "amount must be greater than 0"
+        },
+        {
+            "isNotEmpty": "reference should not be empty",
+            "isString": "reference must be a string"
+        },
+        {
+            "isEnum": "method invalid cash | card | transfer"
+        }
+    ]
+}
+```
 
-## Entregables
-
-Código en repo (estructura sugerida abajo).
-
-README con:
-
-* Cómo correr localmente.
-
-* Variables de entorno.
-
-* Ejemplos de curl.
-
-## Criterios de aceptación
-
-- Crea pagos válidos y responde 201.
-
-- Repite con misma Idempotency-Key + mismo cuerpo → 200 misma respuesta.
-
-- Repite con misma Idempotency-Key + distinto cuerpo → 409.
-
-- Sin Idempotency-Key, reintento exacto por (reference, method, amount) → 200 sin duplicar.
-
-- Índices únicos creados correctamente.
-
-- README claro
-
-
-
+- HTTP Satus 500 Internal Server Error
+Error no controlado
+```bash
+{ "error": "Internal server error" }
+```
