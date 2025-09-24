@@ -26,7 +26,7 @@ const paymentSchema = new Schema<PaymentDoc>(
     requestHash: { type: String, required: true },
     createdAt: { type: Date, default: new Date() },
   },
-  { timestamps: false },
+  { timestamps: false, versionKey: false },
 );
 
 paymentSchema.index({ reference: 1, method: 1, amount: 1 }, { unique: true });
